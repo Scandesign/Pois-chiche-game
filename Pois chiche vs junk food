@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pois Chiche Adventure</title>
+    <style>
+        body { 
+            text-align: center; font-family: 'Segoe UI', sans-serif; 
+            background: #222; color: white; margin: 0; overflow: hidden; 
+            touch-action: manipulation;
+        }
+        #game-container { position: relative; width: 100%; max-width: 800px; margin: 20px auto; }
+        canvas { 
+            background: linear-gradient(#87CEEB, #E0F6FF); /* Ciel dégradé */
+            display: block; width: 100%; border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.8); border-radius: 10px;
+        }
+        button {
+            padding: 15px 30px; font-size: 1.2rem; cursor: pointer;
+            border: none; border-radius: 50px; background: #ffcc00; color: #333;
+            font-weight: bold; margin-top: 20px; transition: 0.2s;
+        }
+        button:active { transform: scale(0.9); }
+        #score-display { font-size: 2rem; margin: 10px; color: #ffcc00; text-shadow: 2px 2px #000; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="score-display">0</div>
+        <canvas id="gameCanvas" width="800" height="300"></canvas>
+        
+        <div id="ui-layer" id="gameOverScreen">
+            <h1 style="color: #ff4444; font-size: 3rem;">GAME OVER</h1>
+            <p id="finalScore" style="font-size: 1.5rem;">Score : 0</p>
+            <button onclick="resetGame()">REJOUER 🧆</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiLayer = document.getElementById('ui-layer');
+        const scoreDisplay = document.getElementById('score-display');
+
+        // Variables de jeu
+        let score = 0;
+        let gameActive = true;
+        let gameSpeed = 6;
+        let frame = 0;
+        let obstacles = [];
+
+        // Le Héros : Le Pois Chiche 🧆
+        let hero = {
+            x: 80, y: 230, w: 50, h: 50,
+            dy: 0, jumpForce: 15, gravity: 0.8,
+            grounded: false, rotation: 0
+        };
+
+        function drawHero() {
+            ctx.save();
+            ctx.translate(hero.x + hero.w/2, hero.y + hero.h/2);
+            // Animation de rotation lors du saut
+            if (!hero.grounded) {
+                hero.rotation += 0.15;
+                ctx.rotate(hero.rotation);
+            } else {
+                hero.rotation = 0;
+            }
+            ctx.font = '50px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🧆', 0, 0);
+            ctx.restore();
+        }
+
+        function createObstacle() {
+            let type = Math.random() > 0.4 ? 'burger' : 'frite';
+            if (type === 'burger') {
+                // Au sol
+                obstacles.push({ x: 850, y: 235, w: 45, h: 45, icon: '🍔', type: 'ground' });
+            } else {
+                // Dans les airs (nécessite de rester au sol)
+                obstacles.push({ x: 850, y: 120, w: 45, h: 45, icon: '🍟', type: 'air' });
+            }
+        }
+
+        function update() {
+            if (!gameActive) return;
+            frame++;
+
+            // Physique du saut
+            hero.dy += hero.gravity;
+            hero.y += hero.dy;
+
+            if (hero.y > 230) {
+                hero.y = 230;
+                hero.dy = 0;
+                hero.grounded = true;
+            }
+
+            // Génération obstacles
+            if (frame % Math.max(30, 100 - Math.floor(score/2)) === 0) {
+                createObstacle();
+            }
+
+            obstacles.forEach((obs, i) => {
+                obs.x -= gameSpeed;
+
+                // Dessin obstacle
+                ctx.font = '45px serif';
+                ctx.fillText(obs.icon, obs.x, obs.y + obs.h);
+
+                // Collision précise
+                let hitX = hero.x < obs.x + obs.w - 10 && hero.x + hero.w - 10 > obs.x;
+                let hitY = hero.y < obs.y + obs.h - 10 && hero.y + hero.h - 10 > obs.y;
+
+                if (hitX && hitY) {
+                    endGame();
+                }
+
+                // Score
+                if (obs.x + obs.w < 0) {
+                    obstacles.splice(i, 1);
+                    score++;
+                    scoreDisplay.innerText = score;
+                    gameSpeed += 0.1;
+                }
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Sol
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(0, 280, canvas.width, 20);
+            ctx.fillStyle = '#44aa44';
+            ctx.fillRect(0, 275, canvas.width, 5);
+
+            drawHero();
+            update();
+            if (gameActive) requestAnimationFrame(draw);
+        }
+
+        function jump(e) {
+            if (e) e.preventDefault();
+            if (hero.grounded && gameActive) {
+                hero.dy = -hero.jumpForce;
+                hero.grounded = false;
+            }
+        }
+
+        function endGame() {
+            gameActive = false;
+            uiLayer.style.display = 'flex';
+            document.getElementById('finalScore').innerText = "Tu as mangé " + score + " fast-foods !";
+        }
+
+        function resetGame() {
+            score = 0;
+            gameSpeed = 6;
+            obstacles = [];
+            hero.y = 230;
+            gameActive = true;
+            uiLayer.style.display = 'none';
+            scoreDisplay.innerText = "0";
+            draw();
+        }
+
+        // Contrôles
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') jump(); });
+        window.addEventListener('touchstart', jump, { passive: false });
+
+        draw();
+    </script>
+</body>
+</html>
