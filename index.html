@@ -1,157 +1,666 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pois Chiche Adventure - Parallaxe</title>
-    <style>
-        body { 
-            text-align: center; font-family: 'Segoe UI', sans-serif; 
-            background: #1a1a1a; color: white; margin: 0; overflow: hidden; 
-            touch-action: manipulation;
-        }
-        #game-container { position: relative; width: 100%; max-width: 800px; margin: 20px auto; }
-        canvas { 
-            background: linear-gradient(#2c3e50, #4ca1af); /* Ambiance plus profonde */
-            display: block; width: 100%; border-radius: 15px;
-            box-shadow: 0 0 30px rgba(76, 161, 175, 0.4);
-        }
-        #ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0, 0, 0, 0.85); border-radius: 15px;
-        }
-        button {
-            padding: 15px 40px; font-size: 1.5rem; cursor: pointer;
-            border: none; border-radius: 50px; background: #4ca1af; color: white;
-            font-weight: bold; margin-top: 20px;
-        }
-        #score-display { font-size: 2.5rem; margin: 10px; color: #ffcc00; font-weight: bold; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🧆 Légumineuses Run!</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: radial-gradient(ellipse at 50% 30%, #0d2a3e 0%, #071520 100%);
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    overflow: hidden; touch-action: none; color: white;
+  }
+ 
+  #game-title {
+    font-size: 2rem; font-weight: 900; color: #ffd700;
+    text-shadow: 0 0 25px rgba(255,215,0,0.55), 0 2px 6px rgba(0,0,0,0.6);
+    letter-spacing: 3px; margin-bottom: 6px; text-align: center;
+  }
+ 
+  #game-wrapper { position: relative; width: 100%; max-width: 800px; padding: 0 8px; }
+ 
+  /* ─── HUD ─────────────────────────────────────────────────────── */
+  #hud {
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(135deg, rgba(5,20,35,0.9), rgba(10,35,55,0.85));
+    border: 1px solid rgba(76,161,175,0.35); border-bottom: none;
+    border-radius: 12px 12px 0 0; padding: 5px 14px;
+  }
+  .hud-item { display: flex; flex-direction: column; align-items: center; min-width: 68px; }
+  .hud-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 1.5px; color: #6aabb8; font-weight: 700; }
+  .hud-val   { font-size: 1.25rem; font-weight: 900; color: #ffd700; line-height: 1.1; }
+  #hearts-display { font-size: 1.1rem; letter-spacing: 3px; }
+  #combo-zone {
+    font-size: 0.95rem; font-weight: 900; min-height: 1.3rem;
+    text-shadow: 0 0 10px currentColor; transition: color 0.2s;
+  }
+  #level-progress { width: 76px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+  #level-bar { height: 100%; background: linear-gradient(90deg, #4ca1af, #a8edea); border-radius: 3px; width: 0%; transition: width 0.35s ease; }
+ 
+  /* ─── CANVAS ──────────────────────────────────────────────────── */
+  canvas {
+    display: block; width: 100%;
+    border: 1px solid rgba(76,161,175,0.35); border-top: none;
+    border-radius: 0 0 12px 12px; cursor: pointer;
+  }
+ 
+  /* ─── OVERLAY ─────────────────────────────────────────────────── */
+  #overlay {
+    position: absolute; inset: 0;
+    border-radius: 0 0 12px 12px;
+    background: rgba(4,14,24,0.93);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 20; backdrop-filter: blur(4px);
+  }
+  .screen { display: none; flex-direction: column; align-items: center; text-align: center; padding: 18px 22px; width: 100%; max-width: 430px; }
+  .screen.active { display: flex; }
+  .screen h2 { font-size: 2rem; font-weight: 900; margin-bottom: 4px; }
+  .info-box {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 11px 16px; margin: 10px 0;
+    text-align: left; font-size: 0.82rem; color: #b8cdd8; width: 100%; line-height: 1.65;
+  }
+  .info-box b { color: #ffd700; }
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin: 10px 0; }
+  .stat-card {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 9px 6px;
+  }
+  .stat-card .s-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; color: #6aabb8; }
+  .stat-card .s-val   { font-size: 1.5rem; font-weight: 900; color: #ffd700; }
+  #new-record-badge {
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    color: #1a0a00; font-weight: 900; font-size: 0.85rem;
+    padding: 4px 14px; border-radius: 20px; display: none; margin-bottom: 6px;
+  }
+  .fact-card {
+    background: linear-gradient(135deg, rgba(76,161,175,0.15), rgba(30,80,100,0.15));
+    border: 1px solid rgba(76,161,175,0.3); border-radius: 10px;
+    padding: 9px 14px; font-style: italic; font-size: 0.8rem;
+    color: #a8edea; margin: 6px 0; width: 100%; line-height: 1.5;
+  }
+  .btn {
+    padding: 11px 34px; font-size: 1.05rem; cursor: pointer;
+    border: none; border-radius: 50px; font-weight: 800; letter-spacing: 1px;
+    margin: 5px; transition: transform 0.1s, box-shadow 0.1s;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  .btn:hover, .btn:active { transform: scale(1.07); }
+  .btn-play { background: linear-gradient(135deg,#4ca1af,#1a6a7a); color: white; box-shadow: 0 4px 22px rgba(76,161,175,0.45); }
+  .btn-sec  { background: rgba(255,255,255,0.09); color: #ccc; font-size: 0.88rem; padding: 8px 22px; border: 1px solid rgba(255,255,255,0.18); }
+ 
+  /* ─── FACT BANNER ─────────────────────────────────────────────── */
+  #fact-banner {
+    position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%);
+    background: rgba(3,12,22,0.88); border: 1.5px solid rgba(255,215,0,0.5);
+    border-radius: 10px; padding: 7px 14px; font-size: 0.78rem; color: #ffd700;
+    max-width: 380px; width: 92%; text-align: center; z-index: 5;
+    opacity: 0; transition: opacity 0.35s; pointer-events: none;
+    box-shadow: 0 0 14px rgba(255,215,0,0.15);
+  }
+ 
+  #tip { font-size: 0.75rem; color: #2a4455; margin-top: 5px; text-align: center; }
+</style>
 </head>
 <body>
-
-    <div id="game-container">
-        <div id="score-display">0</div>
-        <canvas id="gameCanvas" width="800" height="300"></canvas>
-        <div id="ui-layer">
-            <h1 style="color: #ff4444; font-size: 3rem;">FIN DE COURSE !</h1>
-            <p id="finalScore" style="font-size: 1.5rem;">Score : 0</p>
-            <button onclick="resetGame()">REESSAYER 🧆</button>
-        </div>
+ 
+<div id="game-title">🧆 LÉGUMINEUSES RUN !</div>
+ 
+<div id="game-wrapper">
+  <div id="hud">
+    <div class="hud-item">
+      <span class="hud-label">Score</span>
+      <span class="hud-val" id="h-score">0</span>
     </div>
-
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const uiLayer = document.getElementById('ui-layer');
-        const scoreDisplay = document.getElementById('score-display');
-
-        let score = 0, gameActive = true, gameSpeed = 6, frame = 0;
-        let obstacles = [], backgroundLegumes = [];
-        const legumesIcons = ['🫛', '🫘', '🌾', '🌱']; // Tes amis légumineuses
-
-        let hero = { x: 80, y: 230, w: 50, h: 50, dy: 0, jumpForce: 15, gravity: 0.8, grounded: false, rotation: 0 };
-
-        // --- GESTION DU FOND ANIMÉ ---
-        function updateBackground() {
-            // On crée une nouvelle légumineuse de fond de temps en temps
-            if (frame % 20 === 0) {
-                backgroundLegumes.push({
-                    x: 850,
-                    y: Math.random() * 150 + 50, // Dans le ciel
-                    icon: legumesIcons[Math.floor(Math.random() * legumesIcons.length)],
-                    speed: (Math.random() * 2 + 1), // Vitesse lente pour effet parallaxe
-                    size: Math.random() * 20 + 20
-                });
-            }
-
-            backgroundLegumes.forEach((l, i) => {
-                l.x -= l.speed;
-                ctx.globalAlpha = 0.4; // Transparence pour le fond
-                ctx.font = l.size + 'px serif';
-                ctx.fillText(l.icon, l.x, l.y);
-                ctx.globalAlpha = 1.0;
-                if (l.x + 50 < 0) backgroundLegumes.splice(i, 1);
-            });
-        }
-
-        function drawHero() {
-            ctx.save();
-            ctx.translate(hero.x + hero.w/2, hero.y + hero.h/2);
-            if (!hero.grounded) {
-                hero.rotation += 0.15;
-                ctx.rotate(hero.rotation);
-            }
-            ctx.font = '50px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('🧆', 0, 0);
-            ctx.restore();
-        }
-
-        function createObstacle() {
-            let type = Math.random() > 0.4 ? 'burger' : 'frite';
-            if (type === 'burger') obstacles.push({ x: 850, y: 235, w: 40, h: 40, icon: '🍔' });
-            else obstacles.push({ x: 850, y: 110, w: 40, h: 40, icon: '🍟' });
-        }
-
-        function update() {
-            if (!gameActive) return;
-            frame++;
-            gameSpeed += 0.002;
-
-            hero.dy += hero.gravity;
-            hero.y += hero.dy;
-            if (hero.y > 230) { hero.y = 230; hero.dy = 0; hero.grounded = true; }
-
-            let spawnRate = Math.max(25, 90 - Math.floor(gameSpeed * 2));
-            if (frame % spawnRate === 0) createObstacle();
-
-            obstacles.forEach((obs, i) => {
-                obs.x -= gameSpeed;
-                ctx.font = '45px serif';
-                ctx.fillText(obs.icon, obs.x, obs.y + obs.h);
-
-                if (hero.x < obs.x + 30 && hero.x + 35 > obs.x && hero.y < obs.y + 30 && hero.y + 35 > obs.y) endGame();
-                if (obs.x + 50 < 0) { obstacles.splice(i, 1); score++; scoreDisplay.innerText = score; }
-            });
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            updateBackground(); // On dessine le fond en premier
-
-            // Sol
-            ctx.fillStyle = '#3e2723'; ctx.fillRect(0, 280, canvas.width, 20);
-            ctx.fillStyle = '#2e7d32'; ctx.fillRect(0, 275, canvas.width, 5);
-
-            drawHero();
-            update();
-            if (gameActive) requestAnimationFrame(draw);
-        }
-
-        function jump(e) {
-            if (e) e.preventDefault();
-            if (hero.grounded && gameActive) { hero.dy = -hero.jumpForce; hero.grounded = false; }
-        }
-
-        function endGame() {
-            gameActive = false;
-            uiLayer.style.display = 'flex';
-            document.getElementById('finalScore').innerText = "Score final : " + score;
-        }
-
-        function resetGame() {
-            score = 0; gameSpeed = 6; obstacles = []; backgroundLegumes = []; hero.y = 230;
-            gameActive = true; uiLayer.style.display = 'none';
-            scoreDisplay.innerText = "0"; frame = 0;
-            draw();
-        }
-
-        window.addEventListener('keydown', (e) => { if (e.code === 'Space') jump(); });
-        window.addEventListener('touchstart', jump, { passive: false });
-
-        draw();
-    </script>
+    <div class="hud-item">
+      <span class="hud-label">Vies</span>
+      <span id="hearts-display">❤❤❤</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Niveau</span>
+      <span class="hud-val" id="h-level">1</span>
+      <div id="level-progress"><div id="level-bar"></div></div>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">🏆 Record</span>
+      <span class="hud-val" id="h-best">0</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Combo</span>
+      <span id="combo-zone">—</span>
+    </div>
+  </div>
+ 
+  <canvas id="gameCanvas" width="800" height="320"></canvas>
+  <div id="fact-banner"></div>
+ 
+  <div id="overlay">
+    <!-- START -->
+    <div class="screen active" id="start-screen">
+      <h2 style="color:#ffd700">🌱 Légumineuses<br>Run !</h2>
+      <p style="color:#9bb;font-size:.85rem;margin:6px 0">Aide le falafel à fuir la junk-food et à collecter des légumineuses !</p>
+      <div style="font-size:2rem;margin:8px 0;letter-spacing:5px">🫛 🫘 🥜 🌿</div>
+      <div class="info-box">
+        <b>🎮 Contrôles</b><br>
+        ⎵ Espace / Clic / Toucher → <b style="color:#a8edea">Sauter</b><br>
+        <b style="color:#a8edea">Double saut</b> disponible !<br><br>
+        <b>❌ Évite :</b> 🍔 🌭 🍕 🍟 🥤<br>
+        <b>✅ Collecte :</b> 🫛 🫘 🥜 🌿 🌱 (bonus points + anecdotes)<br><br>
+        <b>⚠ Obstacles aériens</b> = reste au sol ou saute très haut !<br>
+        <b>❤ 3 vies</b> — invincibilité brève après chaque coup
+      </div>
+      <button class="btn btn-play" onclick="startGame()">🚀 JOUER !</button>
+    </div>
+ 
+    <!-- GAME OVER -->
+    <div class="screen" id="gameover-screen">
+      <h2 style="color:#ff6b6b">💀 Game Over !</h2>
+      <div id="new-record-badge">🏆 NOUVEAU RECORD !</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="s-label">Score</div><div class="s-val" id="go-score">0</div></div>
+        <div class="stat-card"><div class="s-label">🏆 Record</div><div class="s-val" id="go-best">0</div></div>
+        <div class="stat-card"><div class="s-label">Niveau max</div><div class="s-val" id="go-level">1</div></div>
+        <div class="stat-card"><div class="s-label">Combo max</div><div class="s-val" id="go-combo">0</div></div>
+      </div>
+      <div class="fact-card" id="go-fact">💡 …</div>
+      <button class="btn btn-play" onclick="resetGame()">🔄 Réessayer</button>
+      <button class="btn btn-sec"  onclick="showStartScreen()">🏠 Menu</button>
+    </div>
+  </div>
+</div>
+ 
+<p id="tip">⎵ Espace · Clic · Toucher pour sauter</p>
+ 
+<script>
+'use strict';
+ 
+// ── Canvas ────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;  // 800 × 320
+ 
+// ── Ground constants ──────────────────────────────────────────────────────────
+const GLINE   = 268;       // y of grass top
+const HERO_SY = GLINE - 48; // y of hero sprite top when standing  (= 220)
+ 
+// ── Data ──────────────────────────────────────────────────────────────────────
+const FACTS = [
+  "🫛 Les pois chiches contiennent jusqu'à 19 g de protéines pour 100 g !",
+  "🫘 Les lentilles existent dans l'alimentation humaine depuis plus de 9 000 ans.",
+  "🌱 Les légumineuses enrichissent le sol en azote sans engrais chimique.",
+  "🥜 Les cacahuètes sont des légumineuses, pas des noix !",
+  "🫘 Une portion de lentilles couvre 35 % des besoins journaliers en fer.",
+  "🌿 Les légumineuses réduisent les émissions de gaz à effet de serre.",
+  "🫛 Le soja est la légumineuse la plus cultivée au monde.",
+  "🥜 Les lupins permettent de faire des farines sans gluten.",
+  "🌾 Les fèves comptent parmi les plus anciens aliments cultivés par l'Homme.",
+  "🫛 Les pois chiches sont excellents pour le transit grâce à leurs fibres !",
+  "🌱 On peut substituer la viande par des légumineuses dans beaucoup de recettes.",
+];
+const COLLECT_ICONS  = ['🫛','🫘','🥜','🌿','🌱'];
+const OBSTACLE_ICONS = ['🍔','🌭','🍕','🍟','🥤'];
+const HEARTS_MAP = ['❤❤❤','❤❤🖤','❤🖤🖤','🖤🖤🖤'];
+ 
+// Level score thresholds: index i → min score to reach level i+1
+const LEVEL_SCORES = [0, 10, 25, 45, 70, 100, 140, 190];
+ 
+// ── Persistent best ───────────────────────────────────────────────────────────
+let bestScore = parseInt(localStorage.getItem('lgm_best') || '0');
+document.getElementById('h-best').textContent = bestScore;
+ 
+// ── State ─────────────────────────────────────────────────────────────────────
+let score, lives, speed, frame, gameActive;
+let hero, obstacles, collectibles, particles, floatTexts;
+let combo, maxCombo, level;
+let invincible, invTimer;
+let shakeAmt, shakeDur;
+let groundScroll;
+let clouds, stars, bgPlants;
+let rafId = null, previewRaf = null;
+ 
+// ── Audio (Web Audio API — synthesised SFX) ────────────────────────────────
+let audioCtx = null;
+function ac() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function tone(freq1, freq2, dur, vol = 0.12, type = 'sine', delay = 0) {
+  try {
+    const a = ac();
+    const o = a.createOscillator(), g = a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.type = type;
+    o.frequency.setValueAtTime(freq1, a.currentTime + delay);
+    if (freq2 !== freq1) o.frequency.exponentialRampToValueAtTime(freq2, a.currentTime + delay + dur * 0.8);
+    g.gain.setValueAtTime(vol, a.currentTime + delay);
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + delay + dur);
+    o.start(a.currentTime + delay);
+    o.stop(a.currentTime + delay + dur);
+  } catch(e) {}
+}
+function playJump()     { tone(380, 600, 0.14, 0.1, 'sine'); }
+function playDblJump()  { tone(600, 950, 0.11, 0.09, 'triangle'); }
+function playCollect()  { tone(880, 1320, 0.18, 0.09, 'sine'); }
+function playHit()      { tone(200, 70, 0.22, 0.18, 'sawtooth'); }
+function playLevelUp()  { [523,659,784,1047].forEach((f,i)=>tone(f,f,0.14,0.1,'sine',i*0.09)); }
+ 
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  score = 0; lives = 3; speed = 5.5; frame = 0; gameActive = false;
+  combo = 0; maxCombo = 0; level = 1;
+  invincible = false; invTimer = 0;
+  shakeAmt = 0; shakeDur = 0; groundScroll = 0;
+  obstacles = []; collectibles = []; particles = []; floatTexts = [];
+  clouds = [ {x:130,y:38,r:62}, {x:400,y:24,r:48}, {x:650,y:55,r:78} ];
+  bgPlants = [];
+  stars = Array.from({length:60}, () => ({
+    x: Math.random()*W, y: Math.random()*(GLINE-30),
+    r: Math.random()*1.2+0.3, tw: Math.random()*Math.PI*2
+  }));
+  hero = {
+    x:90, y:HERO_SY, w:48, h:48,
+    dy:0, jumpCount:0, maxJumps:2,
+    jumpForce:14, gravity:0.75,
+    rotation:0, grounded:true
+  };
+}
+ 
+// ── HUD ───────────────────────────────────────────────────────────────────────
+function hudUpdate() {
+  document.getElementById('h-score').textContent = score;
+  document.getElementById('h-best').textContent  = bestScore;
+  document.getElementById('h-level').textContent = level;
+  document.getElementById('hearts-display').textContent = HEARTS_MAP[Math.max(0, 3-lives)] ?? '🖤🖤🖤';
+ 
+  const prev = LEVEL_SCORES[level-1] ?? 0;
+  const next = LEVEL_SCORES[level]   ?? prev + 60;
+  const pct  = Math.min(((score-prev)/(next-prev))*100, 100);
+  document.getElementById('level-bar').style.width = pct + '%';
+ 
+  const cz = document.getElementById('combo-zone');
+  if (combo >= 3) {
+    cz.textContent = `×${combo} 🔥`;
+    cz.style.color = combo >= 10 ? '#ff4455' : combo >= 5 ? '#ff8c42' : '#ffcc00';
+  } else { cz.textContent = '—'; cz.style.color = '#2a4455'; }
+}
+ 
+// ── Fact banner ───────────────────────────────────────────────────────────────
+let factTimer = null;
+function showFact(text) {
+  const b = document.getElementById('fact-banner');
+  b.textContent = '💡 ' + text;
+  b.style.opacity = '1';
+  if (factTimer) clearTimeout(factTimer);
+  factTimer = setTimeout(() => b.style.opacity = '0', 3200);
+}
+function randomFact() { return FACTS[Math.floor(Math.random()*FACTS.length)]; }
+ 
+// ── Screen helpers ────────────────────────────────────────────────────────────
+function showOverlay(id) {
+  document.getElementById('overlay').style.display = 'flex';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function hideOverlay() { document.getElementById('overlay').style.display = 'none'; }
+ 
+// ── Spawn obstacles ───────────────────────────────────────────────────────────
+function spawnObstacle() {
+  const r = Math.random();
+  const gObs = (icon) => ({ x:W+30, y:GLINE-40, w:38, h:38, icon, aerial:false });
+  const aObs = (icon) => ({ x:W+30, y:148,       w:38, h:38, icon, aerial:true  });
+ 
+  if (level < 2) {
+    obstacles.push(gObs(OBSTACLE_ICONS[Math.floor(r*5)]));
+  } else if (level < 4) {
+    if (r < 0.68) obstacles.push(gObs(OBSTACLE_ICONS[Math.floor(r*5)]));
+    else          obstacles.push(aObs('🍟'));
+  } else if (level < 6) {
+    if      (r < 0.3)  { obstacles.push(gObs(OBSTACLE_ICONS[0])); obstacles.push({...gObs(OBSTACLE_ICONS[1]), x:W+90}); }
+    else if (r < 0.5)  obstacles.push(aObs('🍟'));
+    else               obstacles.push(gObs(OBSTACLE_ICONS[Math.floor(r*5)]));
+  } else {
+    if      (r < 0.25) { obstacles.push(gObs(OBSTACLE_ICONS[0])); obstacles.push({...gObs(OBSTACLE_ICONS[1]), x:W+90}); }
+    else if (r < 0.45) obstacles.push(aObs('🍟'));
+    else if (r < 0.62) { obstacles.push(gObs(OBSTACLE_ICONS[2])); obstacles.push({...aObs('🍕'), x:W+115}); }
+    else if (r < 0.75) { obstacles.push(gObs(OBSTACLE_ICONS[0])); obstacles.push({...gObs(OBSTACLE_ICONS[3]), x:W+85}); obstacles.push({...gObs(OBSTACLE_ICONS[4]), x:W+170}); }
+    else               obstacles.push(gObs(OBSTACLE_ICONS[Math.floor(r*5)]));
+  }
+}
+ 
+function spawnCollectible() {
+  const yMin = 140, yMax = HERO_SY - 18;
+  collectibles.push({
+    x: W+30, y: yMin + Math.random()*(yMax-yMin),
+    w:30, h:30, icon: COLLECT_ICONS[Math.floor(Math.random()*5)],
+    bob: Math.random()*Math.PI*2
+  });
+}
+ 
+// ── Effects ───────────────────────────────────────────────────────────────────
+function spawnParticles(x, y, color, n=8) {
+  for (let i=0;i<n;i++) {
+    const a = (Math.PI*2*i/n)+Math.random()*0.5, s = 1.5+Math.random()*2.5;
+    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-1.5, alpha:1, size:3+Math.random()*4, color });
+  }
+}
+function spawnFloat(x, y, text, color='#ffd700') {
+  floatTexts.push({ x, y, text, color, alpha:1, vy:-1.3 });
+}
+function screenShake(amt, dur) { shakeAmt=amt; shakeDur=dur; }
+ 
+// ── Collision AABB ────────────────────────────────────────────────────────────
+function collides(a, b, m=9) {
+  return a.x+m < b.x+b.w-m && a.x+a.w-m > b.x+m &&
+         a.y+m < b.y+b.h-m && a.y+a.h-m > b.y+m;
+}
+ 
+// ── Level check ───────────────────────────────────────────────────────────────
+function checkLevel() {
+  for (let i=1; i<LEVEL_SCORES.length; i++) {
+    if (score >= LEVEL_SCORES[i] && level < i+1) {
+      level = i+1;
+      spawnFloat(W/2, H/2-20, `⬆ NIVEAU ${level} !`, '#4ca1af');
+      screenShake(6,18); playLevelUp(); hudUpdate(); return;
+    }
+  }
+}
+ 
+// ── Background drawing ────────────────────────────────────────────────────────
+function drawSky() {
+  const g = ctx.createLinearGradient(0,0,0,GLINE);
+  g.addColorStop(0,   '#090f1f');
+  g.addColorStop(0.45,'#0e2540');
+  g.addColorStop(1,   '#1e5c6e');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,GLINE);
+}
+ 
+function drawStars() {
+  stars.forEach(s => {
+    s.tw += 0.025;
+    const a = 0.4 + 0.5*Math.abs(Math.sin(s.tw));
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+}
+ 
+function drawClouds() {
+  clouds.forEach(c => {
+    c.x -= 0.45;
+    if (c.x + c.r*2 < 0) { c.x = W+c.r; c.y = 18+Math.random()*80; }
+    ctx.save(); ctx.globalAlpha = 0.14; ctx.fillStyle = '#c8e8f8';
+    ctx.beginPath();
+    ctx.ellipse(c.x,        c.y,    c.r,       c.r*0.38, 0,0,Math.PI*2);
+    ctx.ellipse(c.x-c.r*.5, c.y+7,  c.r*0.55,  c.r*0.34, 0,0,Math.PI*2);
+    ctx.ellipse(c.x+c.r*.5, c.y+5,  c.r*0.58,  c.r*0.36, 0,0,Math.PI*2);
+    ctx.fill(); ctx.restore();
+  });
+}
+ 
+function drawMidGround() {
+  if (frame % 52 === 0) {
+    bgPlants.push({ x:W+10, y:GLINE-6,
+      icon:['🌾','🌿','🌱','🎋'][Math.floor(Math.random()*4)],
+      sz:20+Math.random()*18, spd:speed*0.37 });
+  }
+  bgPlants.forEach((p,i) => {
+    p.x -= p.spd;
+    ctx.save(); ctx.globalAlpha = 0.45;
+    ctx.font = p.sz+'px serif'; ctx.textAlign='left'; ctx.textBaseline='bottom';
+    ctx.fillText(p.icon, p.x, p.y);
+    ctx.restore();
+    if (p.x < -60) bgPlants.splice(i,1);
+  });
+}
+ 
+function drawGround() {
+  const sg = ctx.createLinearGradient(0,GLINE,0,H);
+  sg.addColorStop(0,'#5d4037'); sg.addColorStop(1,'#3e2723');
+  ctx.fillStyle = sg; ctx.fillRect(0,GLINE,W,H-GLINE);
+  // grass layers
+  ctx.fillStyle = '#388e3c'; ctx.fillRect(0,GLINE,W,9);
+  ctx.fillStyle = '#4caf50'; ctx.fillRect(0,GLINE,W,5);
+  ctx.fillStyle = '#a5d6a7'; ctx.fillRect(0,GLINE,W,2);
+  // scrolling dirt marks
+  groundScroll -= speed;
+  if (groundScroll < -50) groundScroll = 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  for (let x=groundScroll; x<W; x+=50) ctx.fillRect(x, GLINE+13, 22, 2);
+}
+ 
+// ── Hero drawing ──────────────────────────────────────────────────────────────
+function drawHero() {
+  const cx = hero.x+hero.w/2, cy = hero.y+hero.h/2;
+  // Shadow
+  ctx.save();
+  const alpha = hero.grounded ? 0.28 : 0.12*(1-(HERO_SY-hero.y)/160);
+  ctx.globalAlpha = Math.max(0, alpha);
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, GLINE+5, hero.grounded?20:13, 4, 0,0,Math.PI*2);
+  ctx.fill(); ctx.restore();
+ 
+  ctx.save(); ctx.translate(cx, cy);
+  // Squash & stretch
+  let sx=1, sy=1;
+  if (!hero.grounded) {
+    const t = hero.dy / hero.jumpForce;
+    sx = 1 - Math.abs(t)*0.1; sy = 1 + Math.abs(t)*0.1;
+    hero.rotation += hero.dy > 0 ? 0.1 : -0.04;
+  } else {
+    hero.rotation *= 0.65;
+    const b = Math.sin(frame*0.18)*0.04;
+    sx = 1+b; sy = 1-b;
+  }
+  ctx.scale(sx, sy); ctx.rotate(hero.rotation);
+  if (invincible && Math.floor(frame/5)%2===0) ctx.globalAlpha = 0.28;
+  ctx.font = '46px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('🧆', 0, 0);
+  ctx.restore();
+ 
+  // Double-jump aura
+  if (hero.jumpCount === 2) {
+    ctx.save();
+    ctx.globalAlpha = 0.22 + 0.12*Math.sin(frame*0.3);
+    ctx.strokeStyle = '#4ca1af'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, 28, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+}
+ 
+// ── Main game loop ────────────────────────────────────────────────────────────
+function loop() {
+  if (!gameActive) return;
+  rafId = requestAnimationFrame(loop);
+  frame++; speed += 0.0013;
+ 
+  // Shake offset
+  let sx=0, sy=0;
+  if (shakeDur > 0) { sx=(Math.random()-.5)*shakeAmt; sy=(Math.random()-.5)*shakeAmt; shakeDur--; }
+ 
+  ctx.save(); ctx.translate(sx, sy);
+ 
+  // — Background —
+  drawSky(); drawStars(); drawClouds(); drawMidGround(); drawGround();
+ 
+  // — Hero physics —
+  hero.dy += hero.gravity; hero.y += hero.dy;
+  if (hero.y >= HERO_SY) { hero.y=HERO_SY; hero.dy=0; hero.grounded=true; hero.jumpCount=0; }
+  else hero.grounded = false;
+ 
+  // — Invincibility —
+  if (invincible) { invTimer--; if (invTimer<=0) invincible=false; }
+ 
+  // — Spawning —
+  const spawnRate = Math.max(30, 100 - score*0.33 - level*5.5);
+  if (frame % Math.round(spawnRate) === 0) spawnObstacle();
+  if (frame % 135 === 0) spawnCollectible();
+ 
+  // — Obstacles —
+  obstacles = obstacles.filter(obs => {
+    obs.x -= speed;
+    // Aerial warning shadow on ground
+    if (obs.aerial) {
+      ctx.save();
+      ctx.globalAlpha = 0.15 + 0.07*Math.abs(Math.sin(frame*0.08));
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(obs.x+5, GLINE, 30, 4);
+      ctx.restore();
+    }
+    ctx.font = '40px serif'; ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText(obs.icon, obs.x, obs.y);
+ 
+    // Collision
+    if (!invincible && collides(hero, obs)) {
+      lives--; invincible=true; invTimer=88; combo=0;
+      screenShake(9,22); playHit();
+      spawnParticles(hero.x+hero.w/2, hero.y+hero.h/2, '#ff4444', 12);
+      spawnFloat(hero.x+hero.w/2, hero.y-14, lives>0 ? '💥 Aïe !' : '💀', '#ff4444');
+      hudUpdate();
+      if (lives<=0) { ctx.restore(); endGame(); return false; }
+    }
+ 
+    // Passed → point + combo
+    if (!obs.scored && obs.x+obs.w < hero.x) {
+      obs.scored = true; combo++;
+      if (combo > maxCombo) maxCombo = combo;
+      const bonus = combo>=10?4 : combo>=6?3 : combo>=3?2 : 1;
+      score += bonus;
+      if (bonus>1) spawnFloat(obs.x+20, obs.y-10, `+${bonus} COMBO!`, '#ffcc00');
+      checkLevel(); hudUpdate();
+    }
+    return obs.x > -80;
+  });
+ 
+  // — Collectibles —
+  collectibles = collectibles.filter(col => {
+    col.x -= speed*0.72;
+    const bob = Math.sin(frame*0.07+col.bob)*7;
+    const dy  = col.y + bob;
+    // Glow
+    ctx.save();
+    ctx.globalAlpha = 0.18 + 0.08*Math.abs(Math.sin(frame*0.06));
+    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(col.x+col.w/2, dy+col.h/2, 22, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+    ctx.font='30px serif'; ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText(col.icon, col.x, dy);
+ 
+    if (collides(hero, {x:col.x,y:dy,w:col.w,h:col.h}, 5)) {
+      const pts = 3+level; score+=pts;
+      spawnParticles(col.x+col.w/2, dy+col.h/2, '#ffd700', 13);
+      spawnFloat(col.x+col.w/2, dy-14, `+${pts} 🌿`, '#4caf50');
+      playCollect(); hudUpdate();
+      if (Math.random()<0.6) showFact(randomFact());
+      return false;
+    }
+    return col.x > -60;
+  });
+ 
+  // — Particles —
+  particles = particles.filter(p => {
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.12; p.alpha-=0.028;
+    if (p.alpha<=0) return false;
+    ctx.save(); ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0,p.size*p.alpha),0,Math.PI*2); ctx.fill();
+    ctx.restore(); return true;
+  });
+ 
+  // — Floating texts —
+  floatTexts = floatTexts.filter(t => {
+    t.y+=t.vy; t.alpha-=0.016; if(t.alpha<=0) return false;
+    ctx.save(); ctx.globalAlpha=t.alpha;
+    ctx.font='bold 15px Segoe UI'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=3;
+    ctx.strokeText(t.text,t.x,t.y);
+    ctx.fillStyle=t.color; ctx.fillText(t.text,t.x,t.y);
+    ctx.restore(); return true;
+  });
+ 
+  // — Hero —
+  drawHero();
+ 
+  // Speed indicator
+  ctx.save(); ctx.fillStyle='rgba(255,255,255,0.25)';
+  ctx.font='10px Segoe UI'; ctx.textAlign='right'; ctx.textBaseline='bottom';
+  ctx.fillText(`vitesse ×${speed.toFixed(1)}`, W-6, H-4);
+  ctx.restore();
+ 
+  ctx.restore(); // end shake
+}
+ 
+// ── Idle preview ──────────────────────────────────────────────────────────────
+function previewLoop() {
+  frame++;
+  ctx.save();
+  drawSky(); drawStars(); drawClouds(); drawMidGround(); drawGround();
+  hero.y = HERO_SY + Math.sin(frame*0.12)*4;
+  drawHero();
+  ctx.restore();
+  previewRaf = requestAnimationFrame(previewLoop);
+}
+ 
+// ── Game flow ─────────────────────────────────────────────────────────────────
+function startGame() {
+  if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf=null; }
+  hideOverlay(); init(); gameActive=true; hudUpdate(); loop();
+}
+ 
+function resetGame() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId=null; }
+  hideOverlay(); init(); gameActive=true; hudUpdate(); loop();
+}
+ 
+function showStartScreen() {
+  gameActive=false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId=null; }
+  showOverlay('start-screen'); init();
+  previewRaf = requestAnimationFrame(previewLoop);
+}
+ 
+function endGame() {
+  gameActive=false;
+  const newRecord = score > bestScore;
+  if (newRecord) { bestScore=score; localStorage.setItem('lgm_best', bestScore); }
+  setTimeout(() => {
+    document.getElementById('go-score').textContent = score;
+    document.getElementById('go-best').textContent  = bestScore;
+    document.getElementById('go-level').textContent = level;
+    document.getElementById('go-combo').textContent = maxCombo;
+    document.getElementById('go-fact').textContent  = '💡 '+randomFact();
+    document.getElementById('new-record-badge').style.display = newRecord ? 'inline-block' : 'none';
+    showOverlay('gameover-screen');
+  }, 380);
+}
+ 
+// ── Jump ──────────────────────────────────────────────────────────────────────
+function jump(e) {
+  if (e && typeof e.preventDefault==='function') e.preventDefault();
+  if (!gameActive) return;
+  if (hero.jumpCount < hero.maxJumps) {
+    const isDouble = hero.jumpCount===1;
+    hero.dy = -(hero.jumpForce - hero.jumpCount*1.8);
+    hero.jumpCount++; hero.grounded=false;
+    spawnParticles(hero.x+hero.w/2, hero.y+hero.h, '#88ccff', 5);
+    isDouble ? playDblJump() : playJump();
+    if (isDouble) spawnFloat(hero.x+hero.w/2, hero.y-10, '✨ Double Saut !', '#a8edea');
+  }
+}
+ 
+// ── Events ────────────────────────────────────────────────────────────────────
+window.addEventListener('keydown', e => { if(e.code==='Space'){e.preventDefault();jump();} });
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); jump(); });
+ 
+// ── Boot ──────────────────────────────────────────────────────────────────────
+init();
+showOverlay('start-screen');
+previewRaf = requestAnimationFrame(previewLoop);
+</script>
 </body>
 </html>
