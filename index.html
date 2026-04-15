@@ -3,43 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pois Chiche Adventure</title>
+    <title>Pois Chiche Turbo</title>
     <style>
         body { 
             text-align: center; font-family: 'Segoe UI', sans-serif; 
-            background: #222; color: white; margin: 0; overflow: hidden; 
+            background: #1a1a1a; color: white; margin: 0; overflow: hidden; 
             touch-action: manipulation;
         }
         #game-container { position: relative; width: 100%; max-width: 800px; margin: 20px auto; }
         canvas { 
-            background: linear-gradient(#87CEEB, #E0F6FF); /* Ciel dégradé */
-            display: block; width: 100%; border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background: linear-gradient(#4facfe, #00f2fe); /* Ciel plus vif */
+            display: block; width: 100%; border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0,242,254,0.3);
         }
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0, 0, 0, 0.8); border-radius: 10px;
+            background: rgba(0, 0, 0, 0.85); border-radius: 15px;
         }
         button {
-            padding: 15px 30px; font-size: 1.2rem; cursor: pointer;
-            border: none; border-radius: 50px; background: #ffcc00; color: #333;
-            font-weight: bold; margin-top: 20px; transition: 0.2s;
+            padding: 15px 40px; font-size: 1.5rem; cursor: pointer;
+            border: none; border-radius: 50px; background: #00f2fe; color: #1a1a1a;
+            font-weight: bold; margin-top: 20px; transition: 0.3s;
+            box-shadow: 0 5px 15px rgba(0,242,254,0.4);
         }
-        button:active { transform: scale(0.9); }
-        #score-display { font-size: 2rem; margin: 10px; color: #ffcc00; text-shadow: 2px 2px #000; }
+        button:active { transform: scale(0.95); }
+        #score-display { font-size: 2.5rem; margin: 10px; color: #00f2fe; text-shadow: 2px 2px #000; font-weight: bold; }
+        #speed-bar { width: 200px; height: 10px; background: #444; margin: 5px auto; border-radius: 5px; overflow: hidden; }
+        #speed-fill { width: 0%; height: 100%; background: #00f2fe; transition: width 0.3s; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
         <div id="score-display">0</div>
+        <div id="speed-bar"><div id="speed-fill"></div></div>
         <canvas id="gameCanvas" width="800" height="300"></canvas>
         
-        <div id="ui-layer" id="gameOverScreen">
-            <h1 style="color: #ff4444; font-size: 3rem;">GAME OVER</h1>
-            <p id="finalScore" style="font-size: 1.5rem;">Score : 0</p>
-            <button onclick="resetGame()">REJOUER 🧆</button>
+        <div id="ui-layer">
+            <h1 style="color: #00f2fe; font-size: 3.5rem; margin-bottom: 0;">PERDU !</h1>
+            <p id="finalScore" style="font-size: 1.5rem; margin-top: 10px;">Score : 0</p>
+            <button onclick="resetGame()">REPARTIR À TOUTE VITESSE 🧆</button>
         </div>
     </div>
 
@@ -48,15 +52,15 @@
         const ctx = canvas.getContext('2d');
         const uiLayer = document.getElementById('ui-layer');
         const scoreDisplay = document.getElementById('score-display');
+        const speedFill = document.getElementById('speed-fill');
 
-        // Variables de jeu
         let score = 0;
         let gameActive = true;
         let gameSpeed = 6;
+        let baseSpeed = 6;
         let frame = 0;
         let obstacles = [];
 
-        // Le Héros : Le Pois Chiche 🧆
         let hero = {
             x: 80, y: 230, w: 50, h: 50,
             dy: 0, jumpForce: 15, gravity: 0.8,
@@ -66,9 +70,8 @@
         function drawHero() {
             ctx.save();
             ctx.translate(hero.x + hero.w/2, hero.y + hero.h/2);
-            // Animation de rotation lors du saut
             if (!hero.grounded) {
-                hero.rotation += 0.15;
+                hero.rotation += 0.1 + (gameSpeed / 40); // Tourne plus vite selon la vitesse
                 ctx.rotate(hero.rotation);
             } else {
                 hero.rotation = 0;
@@ -81,13 +84,11 @@
         }
 
         function createObstacle() {
-            let type = Math.random() > 0.4 ? 'burger' : 'frite';
+            let type = Math.random() > 0.45 ? 'burger' : 'frite';
             if (type === 'burger') {
-                // Au sol
-                obstacles.push({ x: 850, y: 235, w: 45, h: 45, icon: '🍔', type: 'ground' });
+                obstacles.push({ x: 850, y: 235, w: 40, h: 40, icon: '🍔' });
             } else {
-                // Dans les airs (nécessite de rester au sol)
-                obstacles.push({ x: 850, y: 120, w: 45, h: 45, icon: '🍟', type: 'air' });
+                obstacles.push({ x: 850, y: 110, w: 40, h: 40, icon: '🍟' });
             }
         }
 
@@ -95,42 +96,43 @@
             if (!gameActive) return;
             frame++;
 
-            // Physique du saut
+            // --- ACCÉLÉRATION PROGRESSIVE ---
+            // On augmente la vitesse de base de façon infime à chaque frame
+            gameSpeed += 0.002; 
+            
+            // Mise à jour de la barre de "Turbo" visuelle
+            let speedPercent = Math.min((gameSpeed - 6) * 10, 100);
+            speedFill.style.width = speedPercent + "%";
+
             hero.dy += hero.gravity;
             hero.y += hero.dy;
 
             if (hero.y > 230) {
-                hero.y = 230;
-                hero.dy = 0;
-                hero.grounded = true;
+                hero.y = 230; hero.dy = 0; hero.grounded = true;
             }
 
-            // Génération obstacles
-            if (frame % Math.max(30, 100 - Math.floor(score/2)) === 0) {
+            // Génération calée sur la vitesse pour éviter les trous ou les collisions impossibles
+            let spawnRate = Math.max(25, 90 - Math.floor(gameSpeed * 2));
+            if (frame % spawnRate === 0) {
                 createObstacle();
             }
 
             obstacles.forEach((obs, i) => {
                 obs.x -= gameSpeed;
 
-                // Dessin obstacle
                 ctx.font = '45px serif';
                 ctx.fillText(obs.icon, obs.x, obs.y + obs.h);
 
-                // Collision précise
-                let hitX = hero.x < obs.x + obs.w - 10 && hero.x + hero.w - 10 > obs.x;
-                let hitY = hero.y < obs.y + obs.h - 10 && hero.y + hero.h - 10 > obs.y;
-
-                if (hitX && hitY) {
+                // Hitbox plus stricte pour être juste à haute vitesse
+                if (hero.x < obs.x + 30 && hero.x + 35 > obs.x &&
+                    hero.y < obs.y + 30 && hero.y + 35 > obs.y) {
                     endGame();
                 }
 
-                // Score
-                if (obs.x + obs.w < 0) {
+                if (obs.x + 50 < 0) {
                     obstacles.splice(i, 1);
                     score++;
                     scoreDisplay.innerText = score;
-                    gameSpeed += 0.1;
                 }
             });
         }
@@ -138,11 +140,18 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Sol
+            // Sol animé (lignes pour donner l'impression de vitesse)
             ctx.fillStyle = '#654321';
             ctx.fillRect(0, 280, canvas.width, 20);
             ctx.fillStyle = '#44aa44';
             ctx.fillRect(0, 275, canvas.width, 5);
+            
+            // Lignes de vitesse au sol
+            ctx.strokeStyle = "rgba(255,255,255,0.3)";
+            for(let i=0; i<10; i++) {
+                let lineX = (i * 100 - (frame * gameSpeed) % 100);
+                ctx.beginPath(); ctx.moveTo(lineX, 285); ctx.lineTo(lineX + 20, 285); ctx.stroke();
+            }
 
             drawHero();
             update();
@@ -160,21 +169,16 @@
         function endGame() {
             gameActive = false;
             uiLayer.style.display = 'flex';
-            document.getElementById('finalScore').innerText = "Tu as mangé " + score + " fast-foods !";
+            document.getElementById('finalScore').innerText = "Score : " + score + " | Vitesse atteinte : " + Math.floor(gameSpeed * 10);
         }
 
         function resetGame() {
-            score = 0;
-            gameSpeed = 6;
-            obstacles = [];
-            hero.y = 230;
-            gameActive = true;
-            uiLayer.style.display = 'none';
-            scoreDisplay.innerText = "0";
+            score = 0; gameSpeed = 6; obstacles = []; hero.y = 230;
+            gameActive = true; uiLayer.style.display = 'none';
+            scoreDisplay.innerText = "0"; frame = 0;
             draw();
         }
 
-        // Contrôles
         window.addEventListener('keydown', (e) => { if (e.code === 'Space') jump(); });
         window.addEventListener('touchstart', jump, { passive: false });
 
