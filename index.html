@@ -3,6 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pois Chiche Adventure - Parallaxe</title>
+    <style>
+        body { 
+            text-align: center; font-family: 'Segoe UI', sans-serif; 
+            background: #1a1a1a; color: white; margin: 0; overflow: hidden; 
+            touch-action: manipulation;
+        }
+        #game-container { position: relative; width: 100%; max-width: 800px; margin: 20px auto; }
+        canvas { 
+            background: linear-gradient(#2c3e50, #4ca1af); /* Ambiance plus profonde */
+            display: block; width: 100%; border-radius: 15px;
+            box-shadow: 0 0 30px rgba(76, 161, 175, 0.4);
+        }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.85); border-radius: 15px;
+        }
+        button {
+            padding: 15px 40px; font-size: 1.5rem; cursor: pointer;
+            border: none; border-radius: 50px; background: #4ca1af; color: white;
+            font-weight: bold; margin-top: 20px;
+        }
+        #score-display { font-size: 2.5rem; margin: 10px; color: #ffcc00; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="score-display">0</div>
+        <canvas id="gameCanvas" width="800" height="300"></canvas>
+        <div id="ui-layer">
+            <h1 style="color: #ff4444; font-size: 3rem;">FIN DE COURSE !</h1>
+            <p id="finalScore" style="font-size: 1.5rem;">Score : 0</p>
+            <button onclick="resetGame()">REESSAYER 🧆</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiLayer = document.getElementById('ui-layer');
+        const scoreDisplay = document.getElementById('score-display');
+
+        let score = 0, gameActive = true, gameSpeed = 6, frame = 0;
+        let obstacles = [], backgroundLegumes = [];
+        const legumesIcons = ['🫛', '🫘', '🌾', '🌱']; // Tes amis légumineuses
+
+        let hero = { x: 80, y: 230, w: 50, h: 50, dy: 0, jumpForce: 15, gravity: 0.8, grounded: false, rotation: 0 };
+
+        // --- GESTION DU FOND ANIMÉ ---
+        function updateBackground() {
+            // On crée une nouvelle légumineuse de fond de temps en temps
+            if (frame % 20 === 0) {
+                backgroundLegumes.push({
+                    x: 850,
+                    y: Math.random() * 150 + 50, // Dans le ciel
+                    icon: legumesIcons[Math.floor(Math.random() * legumesIcons.length)],
+                    speed: (Math.random() * 2 + 1), // Vitesse lente pour effet parallaxe
+                    size: Math.random() * 20 + 20
+                });
+            }
+
+            backgroundLegumes.forEach((l, i) => {
+                l.x -= l.speed;
+                ctx.globalAlpha = 0.4; // Transparence pour le fond
+                ctx.font = l.size + 'px serif';
+                ctx.fillText(l.icon, l.x, l.y);
+                ctx.globalAlpha = 1.0;
+                if (l.x + 50 < 0) backgroundLegumes.splice(i, 1);
+            });
+        }
+
+        function drawHero() {
+            ctx.save();
+            ctx.translate(hero.x + hero.w/2, hero.y + hero.h/2);
+            if (!hero.grounded) {
+                hero.rotation += 0.15;
+                ctx.rotate(hero.rotation);
+            }
+            ctx.font = '50px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('🧆', 0, 0);
+            ctx.restore();
+        }
+
+        function createObstacle() {
+            let type = Math.random() > 0.4 ? 'burger' : 'frite';
+            if (type === 'burger') obstacles.push({ x: 850, y: 235, w: 40, h: 40, icon: '🍔' });
+            else obstacles.push({ x: 850, y: 110, w: 40, h: 40, icon: '🍟' });
+        }
+
+        function update() {
+            if (!gameActive) return;
+            frame++;
+            gameSpeed += 0.002;
+
+            hero.dy += hero.gravity;
+            hero.y += hero.dy;
+            if (hero.y > 230) { hero.y = 230; hero.dy = 0; hero.grounded = true; }
+
+            let spawnRate = Math.max(25, 90 - Math.floor(gameSpeed * 2));
+            if (frame % spawnRate === 0) createObstacle();
+
+            obstacles.forEach((obs, i) => {
+                obs.x -= gameSpeed;
+                ctx.font = '45px serif';
+                ctx.fillText(obs.icon, obs.x, obs.y + obs.h);
+
+                if (hero.x < obs.x + 30 && hero.x + 35 > obs.x && hero.y < obs.y + 30 && hero.y + 35 > obs.y) endGame();
+                if (obs.x + 50 < 0) { obstacles.splice(i, 1); score++; scoreDisplay.innerText = score; }
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            updateBackground(); // On dessine le fond en premier
+
+            // Sol
+            ctx.fillStyle = '#3e2723'; ctx.fillRect(0, 280, canvas.width, 20);
+            ctx.fillStyle = '#2e7d32'; ctx.fillRect(0, 275, canvas.width, 5);
+
+            drawHero();
+            update();
+            if (gameActive) requestAnimationFrame(draw);
+        }
+
+        function jump(e) {
+            if (e) e.preventDefault();
+            if (hero.grounded && gameActive) { hero.dy = -hero.jumpForce; hero.grounded = false; }
+        }
+
+        function endGame() {
+            gameActive = false;
+            uiLayer.style.display = 'flex';
+            document.getElementById('finalScore').innerText = "Score final : " + score;
+        }
+
+        function resetGame() {
+            score = 0; gameSpeed = 6; obstacles = []; backgroundLegumes = []; hero.y = 230;
+            gameActive = true; uiLayer.style.display = 'none';
+            scoreDisplay.innerText = "0"; frame = 0;
+            draw();
+        }
+
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') jump(); });
+        window.addEventListener('touchstart', jump, { passive: false });
+
+        draw();
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Pois Chiche Turbo</title>
     <style>
         body { 
