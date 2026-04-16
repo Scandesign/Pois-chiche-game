@@ -112,7 +112,6 @@ canvas {
 .btn-play { background:linear-gradient(135deg,#4ca1af,#1a6a7a); color:white; box-shadow:0 4px 22px rgba(76,161,175,.45); }
 .btn-sec  { background:rgba(255,255,255,.09); color:#ccc; font-size:.85rem; padding:8px 20px; border:1px solid rgba(255,255,255,.18); }
 
-/* ── Pastille fiche pédagogique ─────────────────────── */
 .pill-link {
   display:inline-flex; align-items:center; gap:5px;
   padding:5px 15px; font-size:.75rem; color:#a8edea;
@@ -262,7 +261,12 @@ let GLINE = H-52, HERO_SY = GLINE-48, AIR_Y = GLINE-120;
 // Vitesse — inspirée du jeu dino Google : accélération décroissante + plafond
 let BASE_SPD = 5.5;
 let SPD_INC  = 0.0013;
-let MAX_SPD  = BASE_SPD * 1.75; // plafond de vitesse
+let MAX_SPD  = BASE_SPD * 1.75;
+
+// ── Physiques scalables avec H (FIX portrait) ───────────────
+// Garantit que le saut représente ~33% de H quel que soit l'écran
+let JF   = 14;    // force de saut  (mis à l'échelle dans setupCanvas)
+let GRAV = 0.75;  // gravité        (mis à l'échelle dans setupCanvas)
 
 const EC = new Map();
 function getEI(emoji, size) {
@@ -289,17 +293,28 @@ function setupCanvas() {
     W=idealW;
     BASE_SPD=5.5*(W/800);
     SPD_INC=0.0013*(W/800);
-    MAX_SPD=BASE_SPD*1.75; // mise à jour du plafond
+    MAX_SPD=BASE_SPD*1.75;
     if(obstacles){obstacles=[];collectibles=[];}
     if(clouds) clouds.forEach(c=>{if(c.x>W)c.x=Math.random()*W;});
     if(hero){hero.x=Math.round(W*.112);if(hero.grnd)hero.y=HERO_SY;}
   }
   const scale=cw/W, newH=Math.round(ch/scale);
   if(Math.abs(newH-H)>2){
-    H=newH;GLINE=H-52;HERO_SY=GLINE-48;AIR_Y=GLINE-120;
+    H=newH; GLINE=H-52; HERO_SY=GLINE-48;
+
+    // ── FIX : mise à l'échelle des physiques avec H ──────────
+    // hScale=1 sur desktop (H≈400), >1 sur portrait (~1.9 pour H≈760)
+    // → le saut représente toujours ~33% de H (cohérent desktop/mobile)
+    const hScale = H / 400;
+    JF   = 14   * hScale;
+    GRAV = 0.75 * hScale;
+    AIR_Y = GLINE - Math.round(120 * hScale); // obstacles aériens proportionnels
+    // ─────────────────────────────────────────────────────────
+
     if(stars)initStars();
     if(clouds)clouds.forEach(c=>{c.y=Math.random()*GLINE*.12+GLINE*.01;});
-    if(hero&&hero.grnd)hero.y=HERO_SY;
+    // ── FIX : mise à jour des physiques du héros au resize ───
+    if(hero){ hero.jf=JF; hero.g=GRAV; if(hero.grnd)hero.y=HERO_SY; }
     if(obstacles){obstacles=[];collectibles=[];}
   }
   ctx.setTransform(scale*dpr,0,0,scale*dpr,0,0);
@@ -370,7 +385,6 @@ const COLLECT=['🫛','🫘','🥜','🌿','🌱'];
 const HAZARDS=['🍔','🌭','🍕','🍟','🥤'];
 const HEARTS=['❤❤❤','❤❤🖤','❤🖤🖤','🖤🖤🖤'];
 
-// ── Niveaux plus espacés (comme le dino Google) ──────────────
 const LVLS=[0,15,35,60,95,140,195,265];
 
 let best=0;
@@ -410,8 +424,8 @@ function init(){
   obstacles=[];collectibles=[];particles=[];floatTexts=[];factTxt='';factF=0;
   clouds=[{x:130,y:GLINE*.06,r:62},{x:400,y:GLINE*.04,r:50},{x:660,y:GLINE*.08,r:78}];
   bgPlants=[];initStars();
-  hero={x:Math.round(W*.112),y:HERO_SY,w:48,h:48,dy:0,jc:0,maxJ:2,jf:14,g:.75,rot:0,grnd:true};
-  best=getPersonalBest(getCurrentPseudo());
+  // ── FIX : utilise JF/GRAV mis à l'échelle (cohérent portrait/desktop) ──
+  hero={x:Math.round(W*.112),y:HERO_SY,w:48,h:48,dy:0,jc:0,maxJ:2,jf:JF,g:GRAV,rot:0,grnd:true};
 }
 function initStars(){
   const n=Math.min(Math.round(80*H/400),240);
@@ -450,7 +464,6 @@ function drawFact(){
 function showOvr(id){document.getElementById('overlay').style.display='flex';document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
 function hideOvr(){document.getElementById('overlay').style.display='none';}
 
-// ── Spawn obstacles : graduation douce inspirée du dino Google ──
 function spawnObs(){
   const r=Math.random();
   const go=ic=>({x:W+30,y:GLINE-40,w:38,h:38,icon:ic,air:false,ok:false});
@@ -458,39 +471,25 @@ function spawnObs(){
   const rH=()=>HAZARDS[Math.floor(Math.random()*5)];
 
   if(level<=1){
-    // Niveau 1 : sol uniquement
     obstacles.push(go(rH()));
-
   }else if(level===2){
-    // Niveau 2 : sol + rare aérien (15 %)
     r<0.85 ? obstacles.push(go(rH())) : obstacles.push(ao('🍟'));
-
   }else if(level===3){
-    // Niveau 3 : sol + aérien plus présent (30 %)
     r<0.70 ? obstacles.push(go(rH())) : obstacles.push(ao('🍟'));
-
   }else if(level===4){
-    // Niveau 4 : premier double au sol (20 %)
     if     (r<0.55) obstacles.push(go(rH()));
     else if(r<0.80) obstacles.push(ao('🍟'));
     else           {obstacles.push(go(HAZARDS[0]));obstacles.push({...go(HAZARDS[1]),x:W+90});}
-
   }else if(level===5){
-    // Niveau 5 : doubles plus fréquents (30 %)
     if     (r<0.40) obstacles.push(go(rH()));
     else if(r<0.65) obstacles.push(ao('🍟'));
     else           {obstacles.push(go(HAZARDS[0]));obstacles.push({...go(HAZARDS[1]),x:W+90});}
-
   }else if(level===6){
-    // Niveau 6 : combo sol+aérien introduit (20 %)
     if     (r<0.30) obstacles.push(go(rH()));
     else if(r<0.55) obstacles.push(ao('🍟'));
     else if(r<0.80){obstacles.push(go(HAZARDS[0]));obstacles.push({...go(HAZARDS[1]),x:W+90});}
     else           {obstacles.push(go(HAZARDS[2]));obstacles.push({...ao('🍕'),x:W+120});}
-
   }else{
-    // Niveau 7-8 : même palette que niveau 6 — la vitesse est le vrai défi
-    // Pas de triples : trop punitifs (comme le dino qui évite les triples obstacles)
     if     (r<0.25) obstacles.push(go(rH()));
     else if(r<0.50) obstacles.push(ao('🍟'));
     else if(r<0.72){obstacles.push(go(HAZARDS[0]));obstacles.push({...go(HAZARDS[1]),x:W+90});}
@@ -498,7 +497,24 @@ function spawnObs(){
   }
 }
 
-function spawnCol(){const yMin=GLINE*.35,yMax=HERO_SY-20;collectibles.push({x:W+30,y:yMin+Math.random()*(yMax-yMin),w:30,h:30,icon:COLLECT[Math.floor(Math.random()*5)],bob:Math.random()*Math.PI*2});}
+// ── FIX spawnCol : zone de spawn = zone réellement atteignable ──
+// Calcule dynamiquement la hauteur max du double saut avec JF/GRAV scalés
+// → tous les bonus sont garantis atteignables sur TOUS les écrans
+function spawnCol(){
+  const sH  = (JF * JF) / (2 * GRAV);                    // hauteur saut simple
+  const pen = 1.8 * (JF / 14);                            // pénalité 2e saut (proportionnelle)
+  const dH  = Math.pow(JF - pen, 2) / (2 * GRAV);        // hauteur saut double
+  const maxReachY = HERO_SY - (sH + dH) + 30;            // +30 px marge de sécurité
+  const yMin = Math.max(GLINE * 0.12, maxReachY);         // plancher : 12 % du ciel
+  const yMax = HERO_SY - 10;
+  collectibles.push({
+    x:W+30,
+    y:yMin + Math.random() * Math.max(20, yMax - yMin),
+    w:30, h:30,
+    icon:COLLECT[Math.floor(Math.random()*5)],
+    bob:Math.random()*Math.PI*2
+  });
+}
 
 const MAX_P=90,MAX_FT=8;
 function spawnP(x,y,col,n=8){for(let i=0;i<n;i++){const a=(Math.PI*2*i/n)+Math.random()*.5,s=1.5+Math.random()*2.5;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.5,al:1,sz:3+Math.random()*4,col});}if(particles.length>MAX_P)particles.splice(0,particles.length-MAX_P);}
@@ -516,7 +532,10 @@ function drawGnd(){const sg=ctx.createLinearGradient(0,GLINE,0,H);sg.addColorSto
 
 function drawHero(){
   const cx=hero.x+hero.w/2,cy=hero.y+hero.h/2;
-  ctx.save();ctx.globalAlpha=Math.max(0,hero.grnd?.28:.1*(1-(HERO_SY-hero.y)/160));ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(cx,GLINE+5,hero.grnd?20:13,4,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  // ── FIX : ombre mise à l'échelle avec H (disparaît au bon moment) ──
+  const shadowFade = 160 * (H / 400);
+  ctx.save();ctx.globalAlpha=Math.max(0,hero.grnd?.28:.1*(1-(HERO_SY-hero.y)/shadowFade));
+  ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(cx,GLINE+5,hero.grnd?20:13,4,0,0,Math.PI*2);ctx.fill();ctx.restore();
   ctx.save();ctx.translate(cx,cy);
   let sx=1,sy=1;
   if(!hero.grnd){const t=hero.dy/hero.jf;sx=1-Math.abs(t)*.1;sy=1+Math.abs(t)*.1;hero.rot+=hero.dy>0?.1:-.04;}
@@ -531,7 +550,6 @@ function loop(){
   rafId=requestAnimationFrame(loop);
   frame++;
 
-  // ── Accélération décroissante + plafond (courbe dino Google) ──
   const sRatio=Math.max(0,Math.min(1,(speed-BASE_SPD)/Math.max(.01,MAX_SPD-BASE_SPD)));
   speed+=SPD_INC*(1-sRatio*0.6);
   speed=Math.min(speed,MAX_SPD);
@@ -546,7 +564,6 @@ function loop(){
   if(hero.y>=HERO_SY){hero.y=HERO_SY;hero.dy=0;hero.grnd=true;hero.jc=0;}else hero.grnd=false;
   if(inv){invT--;if(invT<=0)inv=false;}
 
-  // ── Spawn rate moins agressif — minimum 55 frames (~0.9 s à 60fps) ──
   const sr=Math.max(55,135-score*.22-level*4);
   if(frame%Math.round(sr)===0)spawnObs();
   if(frame%135===0)spawnCol();
@@ -587,9 +604,19 @@ function endGame(){
   },400);
 }
 
+// ── FIX jump : pénalité du double saut proportionnelle à JF ──
+// → le double saut représente la même fraction du saut simple sur tous les écrans
 function jump(e){
   if(e&&e.preventDefault)e.preventDefault();if(!gameActive)return;
-  if(hero.jc<hero.maxJ){const d=hero.jc===1;hero.dy=-(hero.jf-hero.jc*1.8);hero.jc++;hero.grnd=false;spawnP(hero.x+hero.w/2,hero.y+hero.h,'#88ccff',5);d?SFX.dbl():SFX.jump();if(d)spawnFT(hero.x+hero.w/2,hero.y-10,'✨ Double !','#a8edea');}
+  if(hero.jc<hero.maxJ){
+    const d=hero.jc===1;
+    const penalty=1.8*(hero.jf/14);          // pénalité proportionnelle à la force de saut
+    hero.dy=-(hero.jf-hero.jc*penalty);
+    hero.jc++;hero.grnd=false;
+    spawnP(hero.x+hero.w/2,hero.y+hero.h,'#88ccff',5);
+    d?SFX.dbl():SFX.jump();
+    if(d)spawnFT(hero.x+hero.w/2,hero.y-10,'✨ Double !','#a8edea');
+  }
 }
 
 window.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();jump();}});
